@@ -1,0 +1,150 @@
+networks:
+  queue:
+    driver: bridge
+    name: queue
+
+volumes:
+  redis1.data:
+    name: redis1.data
+  redis2.data:
+    name: redis2.data
+  beanstalkd.data:
+    name: beanstalkd.data
+
+services:
+  redis-rdb:
+    image: redis:latest
+    container_name: redis-rdb
+    restart: always
+    ports:
+      - "6479:6379"
+    networks:
+      queue:
+        aliases:
+          - redis-rdb.local
+    volumes:
+      - ./redis_rdb.conf:/usr/local/etc/redis/redis.conf
+      - redis1.data:/data
+
+  redis-aof:
+    image: redis:latest
+    container_name: redis-aof
+    restart: always
+    ports:
+      - "6480:6379"
+    networks:
+      queue:
+        aliases:
+          - redis-aof.local
+    volumes:
+      - ./redis_aof.conf:/usr/local/etc/redis/redis.conf
+      - redis1.data:/data
+
+  beanstalkd:
+    image: laradock/beanstalkd:latest
+    container_name: beanstalkd
+    restart: always
+    ports:
+      - "11300:11300"
+    networks:
+      queue:
+        aliases:
+          - beanstalkd.local
+    volumes:
+      - beanstalkd.data:/data
+
+  aspnetapp-fifo-rdb:
+    container_name: aspnetapp-fifo-rdb
+    image: aspnetapp-fifo-rdb:latest
+    build:
+      context: .
+      dockerfile: ./WebApplication/WebApplication/Dockerfile
+    environment:
+      - "Redis__ConnectionString=redis-rdb.local:6379"
+      - "QueueType=0"
+      - "QueueName=fifo_rdb"
+    ports:
+      - '8800:80'
+    networks:
+      queue:
+        aliases:
+          - aspnetapp-fifo-rdb.local
+    depends_on:
+      - redis-rdb
+
+  aspnetapp-fifo-aof:
+    container_name: aspnetapp-fifo-aof
+    image: aspnetapp-fifo-aof:latest
+    build:
+      context: .
+      dockerfile: ./WebApplication/WebApplication/Dockerfile
+    environment:
+      - "Redis__ConnectionString=redis-aof.local:6379"
+      - "QueueType=0"
+      - "QueueName=fifo_aof"
+    ports:
+      - '8801:80'
+    networks:
+      queue:
+        aliases:
+          - aspnetapp-fifo-aof.local
+    depends_on:
+      - redis-aof
+
+  aspnetapp-beanstalkd:
+    container_name: aspnetapp-beanstalkd
+    image: aspnetapp-beanstalkd:latest
+    build:
+      context: .
+      dockerfile: ./WebApplication/WebApplication/Dockerfile
+    environment:
+      - "Beanstalk__Host=beanstalkd.local"
+      - "Beanstalk__Port=11300"
+      - "QueueType=1"
+      - "QueueName=beanstalkd"
+    ports:
+      - '8802:80'
+    networks:
+      queue:
+        aliases:
+          - aspnetapp-beanstalkd.local
+    depends_on:
+      - beanstalkd
+
+  aspnetapp-lifo-rdb:
+    container_name: aspnetapp-lifo-rdb
+    image: aspnetapp-lifo-rdb:latest
+    build:
+      context: .
+      dockerfile: ./WebApplication/WebApplication/Dockerfile
+    environment:
+      - "Redis__ConnectionString=redis-rdb.local:6379"
+      - "QueueType=2"
+      - "QueueName=lifo_rdb"
+    ports:
+      - '8803:80'
+    networks:
+      queue:
+        aliases:
+          - aspnetapp-lifo-rdb.local
+    depends_on:
+      - redis-rdb
+
+  aspnetapp-lifo-aof:
+    container_name: aspnetapp-lifo-aof
+    image: aspnetapp-lifo-aof:latest
+    build:
+      context: .
+      dockerfile: ./WebApplication/WebApplication/Dockerfile
+    environment:
+      - "Redis__ConnectionString=redis-aof.local:6379"
+      - "QueueType=2"
+      - "QueueName=lifo_rdb"
+    ports:
+      - '8804:80'
+    networks:
+      queue:
+        aliases:
+          - aspnetapp-lifo-aof.local
+    depends_on:
+      - redis-aof
